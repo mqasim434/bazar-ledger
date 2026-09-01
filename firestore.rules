@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isActiveUser() {
+      return !('active' in userDoc()) || userDoc().active == true;
+    }
+
+    function isStaff() {
+      return isSignedIn()
+        && isActiveUser()
+        && (userDoc().role == 'admin' || userDoc().role == 'accountant');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && isActiveUser() && userDoc().role == 'admin';
+    }
+
+    match /users/{uid} {
+      allow read: if isStaff() || (isSignedIn() && request.auth.uid == uid);
+      allow write: if isAdmin();
+    }
+
+    match /salesmen/{id} { allow read, write: if isStaff(); }
+    match /clients/{id} { allow read, write: if isStaff(); }
+    match /inventory/{id} { allow read, write: if isStaff(); }
+    match /salesmanInventory/{id} { allow read, write: if isStaff(); }
+    match /stockIssues/{id} { allow read, write: if isStaff(); }
+    match /inventoryAdjustments/{id} { allow read, write: if isStaff(); }
+    match /transactions/{id} { allow read, write: if isStaff(); }
+    match /recoveries/{id} { allow read, write: if isStaff(); }
+    match /salesmanDeposits/{id} { allow read, write: if isStaff(); }
+    match /vendors/{id} { allow read, write: if isStaff(); }
+    match /vendorTransactions/{id} { allow read, write: if isStaff(); }
+    match /officeBalances/{id} { allow read, write: if isStaff(); }
+
+    match /returns/{id} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /expenses/{id} { allow read, write: if isAdmin(); }
+    match /salesmanExpenses/{id} { allow read, write: if isAdmin(); }
+    match /commissions/{id} { allow read, write: if isAdmin(); }
+    match /commissionRules/{id} { allow read, write: if isAdmin(); }
+  }
+}

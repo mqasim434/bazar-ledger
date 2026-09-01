@@ -1,0 +1,12 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "salesmen",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "active", "order": "ASCENDING" },
+        { "fieldPath": "nameLower", "order": "ASCENDING" }
+      ]
+    }
+  ]
+}
