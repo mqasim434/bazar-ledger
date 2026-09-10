@@ -114,6 +114,11 @@ export function CommissionsPage() {
               },
               { key: 'basisAmount', header: 'Basis', render: (r) => formatCurrency(r.basisAmount) },
               { key: 'earnedAmount', header: 'Earned', render: (r) => formatCurrency(r.earnedAmount) },
+              {
+                key: 'advanceApplied',
+                header: 'Advance adj.',
+                render: (r) => formatCurrency(r.advanceApplied || 0),
+              },
               { key: 'paidAmount', header: 'Paid', render: (r) => formatCurrency(r.paidAmount) },
               {
                 key: 'remainingBalance',
@@ -206,15 +211,22 @@ export function CommissionsPage() {
             onChange={(e) => setGen({ ...gen, periodEnd: e.target.value })}
           />
           <p className="text-xs text-ink-500">
-            Uses the latest matching rule (salesman-specific, else default) effective on the period end date.
+            Uses the latest matching rule. If the salesman has an advance balance, it is auto-deducted
+            from earned commission (e.g. 10k commission − 5k advance = 5k remaining to pay).
           </p>
           <Button
             className="w-full"
             onClick={async () => {
               try {
                 const man = salesmen.find((s) => s.id === gen.salesmanId);
-                await generateCommission({ ...gen, salesmanName: man?.name }, profile?.email);
-                toast('Commission generated', 'success');
+                const result = await generateCommission(
+                  { ...gen, salesmanName: man?.name },
+                  profile?.email,
+                );
+                const adj = result.advanceApplied
+                  ? ` Advance ${formatCurrency(result.advanceApplied)} adjusted.`
+                  : '';
+                toast(`Commission generated.${adj}`, 'success');
                 setGenOpen(false);
                 reload();
               } catch (err) {

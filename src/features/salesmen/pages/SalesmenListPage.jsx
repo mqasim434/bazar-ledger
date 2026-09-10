@@ -63,8 +63,13 @@ export function SalesmenListPage() {
             { key: 'contact', header: 'Contact' },
             {
               key: 'cashInHand',
-              header: 'Cash in hand',
+              header: 'Cash',
               render: (r) => formatCurrency(r.cashInHand),
+            },
+            {
+              key: 'bankInHand',
+              header: 'Bank',
+              render: (r) => formatCurrency(r.bankInHand),
             },
             {
               key: 'totalSales',

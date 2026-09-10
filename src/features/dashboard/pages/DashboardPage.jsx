@@ -7,7 +7,16 @@ import { formatCurrency, formatDate } from '../../../utils/formatters';
 import { getDashboardSummary } from '../dashboardService';
 
 export function DashboardPage() {
-  const { start, end, setStart, setEnd, range } = useDateRangeFilter();
+  const {
+    start,
+    end,
+    setStart,
+    setEnd,
+    range,
+    fromStart,
+    setFromStart,
+    setThisMonth,
+  } = useDateRangeFilter();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
@@ -18,7 +27,7 @@ export function DashboardPage() {
       .then(setData)
       .catch((e) => toast(e.message, 'danger'))
       .finally(() => setLoading(false));
-  }, [range.start, range.end]);
+  }, [range.start, range.end, range.fromStart]);
 
   if (loading && !data) return <Spinner label="Loading overview…" />;
   if (!data) return null;
@@ -41,7 +50,17 @@ export function DashboardPage() {
         <StatCard label="Vendor owed" value={formatCurrency(data.vendorOwed)} accent="warn" />
       </div>
       <div className="mb-4 max-w-md">
-        <DatePicker mode="range" label="Sales / recovery period" start={start} end={end} onStartChange={setStart} onEndChange={setEnd} />
+        <DatePicker
+          mode="range"
+          label="Sales / recovery period"
+          start={start}
+          end={end}
+          fromStart={fromStart}
+          onStartChange={setStart}
+          onEndChange={setEnd}
+          onFromStart={setFromStart}
+          onThisMonth={setThisMonth}
+        />
       </div>
       <div className="mb-6 grid gap-3 md:grid-cols-2">
         <StatCard label="Total sales (range)" value={formatCurrency(data.totalSales)} accent="teal" />
@@ -64,6 +83,7 @@ export function DashboardPage() {
           { key: 'sales', header: 'Sales', render: (r) => formatCurrency(r.sales) },
           { key: 'recovery', header: 'Recovery', render: (r) => formatCurrency(r.recovery) },
           { key: 'cashInHand', header: 'Cash', render: (r) => formatCurrency(r.cashInHand) },
+          { key: 'bankInHand', header: 'Bank', render: (r) => formatCurrency(r.bankInHand) },
           {
             key: 'commissionRemaining',
             header: 'Commission due',

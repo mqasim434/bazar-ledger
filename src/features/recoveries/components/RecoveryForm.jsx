@@ -93,10 +93,14 @@ export function RecoveryForm({ initial = {}, onCreated }) {
         label="Payment mode"
         value={form.paymentMode}
         onChange={(e) => setForm({ ...form, paymentMode: e.target.value })}
+        hint={
+          form.paymentMode === 'bank'
+            ? 'Goes to salesman bank balance until office confirms.'
+            : 'Goes to salesman cash in hand.'
+        }
       >
-        <option value="cash">Cash (held by salesman)</option>
-        <option value="pos">POS (office bank)</option>
-        <option value="bank">Bank (office bank)</option>
+        <option value="cash">Cash (salesman cash in hand)</option>
+        <option value="bank">Bank (salesman bank — pending office confirm)</option>
       </Select>
       <Input
         label="Date"

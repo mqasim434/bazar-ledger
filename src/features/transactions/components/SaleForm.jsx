@@ -8,13 +8,13 @@ import {
   SearchableSelect,
   Select,
 } from '../../../components/ui';
-import { calcDiscountAmount, calcGrossAmount, calcNetAmount } from '../../../utils/calculations';
+import { computeSaleFromRates } from '../../../utils/calculations';
 import { formatCurrency, formatYards, todayKey } from '../../../utils/formatters';
 import { getClients } from '../../clients/clientsService';
 import { getInventory } from '../../inventory/inventoryService';
 import { getSalesmanInventory } from '../../inventory/stockIssueService';
 import { getSalesmen } from '../../salesmen/salesmenService';
-import { computeSaleAmounts, createTransaction } from '../transactionService';
+import { createTransaction } from '../transactionService';
 
 export function SaleForm({ initial = {}, onCreated }) {
   const profile = useSelector((s) => s.auth.profile);
@@ -30,8 +30,8 @@ export function SaleForm({ initial = {}, onCreated }) {
     salesmanId: initial.salesmanId || '',
     itemId: '',
     yards: '',
+    givenRatePerYard: '',
     ratePerYard: '',
-    discountPercent: 0,
     paymentType: 'cash',
     date: todayKey(),
   });
@@ -56,7 +56,6 @@ export function SaleForm({ initial = {}, onCreated }) {
     setForm((f) => ({
       ...f,
       salesmanId: f.salesmanId || client.salesmanId,
-      discountPercent: f.discountPercent || client.defaultDiscountPercent || 0,
     }));
   }, [form.clientId, client]);
 
@@ -69,14 +68,20 @@ export function SaleForm({ initial = {}, onCreated }) {
   }, [form.salesmanId]);
 
   useEffect(() => {
-    if (item && (form.ratePerYard === '' || form.ratePerYard == null)) {
-      setForm((f) => ({ ...f, ratePerYard: item.ratePerYard }));
-    }
-  }, [item]);
+    if (!item) return;
+    setForm((f) => ({
+      ...f,
+      givenRatePerYard: item.ratePerYard,
+      ratePerYard: f.ratePerYard === '' || f.ratePerYard == null ? item.ratePerYard : f.ratePerYard,
+    }));
+  }, [item?.id]);
 
-  const gross = calcGrossAmount(form.yards, form.ratePerYard);
-  const discount = calcDiscountAmount(gross, form.discountPercent);
-  const net = calcNetAmount(gross, discount);
+  const amounts = computeSaleFromRates({
+    yards: form.yards,
+    givenRatePerYard: form.givenRatePerYard || form.ratePerYard,
+    soldRatePerYard: form.ratePerYard,
+  });
+  const { grossAmount: gross, discountAmount: discount, netAmount: net, discountPercent } = amounts;
 
   const overLimit =
     form.paymentType === 'credit' &&
@@ -102,7 +107,14 @@ export function SaleForm({ initial = {}, onCreated }) {
     }
     setSaving(true);
     try {
-      const txn = await createTransaction(form, profile?.email);
+      const txn = await createTransaction(
+        {
+          ...form,
+          givenRatePerYard: form.givenRatePerYard || form.ratePerYard,
+          discountPercent,
+        },
+        profile?.email,
+      );
       onCreated?.(txn);
     } catch (err) {
       setError(err.message);
@@ -126,7 +138,7 @@ export function SaleForm({ initial = {}, onCreated }) {
         label="Client"
         required
         value={form.clientId}
-        onChange={(id) => setForm({ ...form, clientId: id, salesmanId: '', discountPercent: 0 })}
+        onChange={(id) => setForm({ ...form, clientId: id, salesmanId: '' })}
         options={clients.map((c) => ({
           value: c.id,
           label: `${c.shopName} · ${c.serialNumber}`,
@@ -145,10 +157,13 @@ export function SaleForm({ initial = {}, onCreated }) {
         required
         value={form.itemId}
         onChange={(id) => {
-          const row = bag.find((b) => b.itemId === id);
           const inv = items.find((i) => i.id === id);
-          setForm({ ...form, itemId: id, ratePerYard: inv?.ratePerYard || '' });
-          void row;
+          setForm({
+            ...form,
+            itemId: id,
+            givenRatePerYard: inv?.ratePerYard || '',
+            ratePerYard: inv?.ratePerYard || '',
+          });
         }}
         options={itemOptions}
         placeholder={form.salesmanId ? 'Select from salesman stock' : 'Pick a salesman first'}
@@ -164,21 +179,22 @@ export function SaleForm({ initial = {}, onCreated }) {
           onChange={(e) => setForm({ ...form, yards: e.target.value })}
         />
         <Input
-          label="Rate / yard"
+          label="Given rate / yard"
+          type="number"
+          min="0"
+          step="0.01"
+          value={form.givenRatePerYard}
+          hint="List / default rate (from inventory)"
+          onChange={(e) => setForm({ ...form, givenRatePerYard: e.target.value })}
+        />
+        <Input
+          label="Sold rate / yard"
           type="number"
           min="0"
           step="0.01"
           value={form.ratePerYard}
+          hint="If lower than given rate, discount auto-fills as cash"
           onChange={(e) => setForm({ ...form, ratePerYard: e.target.value })}
-        />
-        <Input
-          label="Discount %"
-          type="number"
-          min="0"
-          max="100"
-          step="0.01"
-          value={form.discountPercent}
-          onChange={(e) => setForm({ ...form, discountPercent: e.target.value })}
         />
         <Input
           label="Date"
@@ -198,18 +214,28 @@ export function SaleForm({ initial = {}, onCreated }) {
       <Card accent="gold">
         <div className="grid grid-cols-3 gap-2 text-sm tnum">
           <div>
-            <p className="text-xs text-ink-500">Gross</p>
+            <p className="text-xs text-ink-500">Gross (at given rate)</p>
             <p>{formatCurrency(gross)}</p>
           </div>
           <div>
-            <p className="text-xs text-ink-500">Discount</p>
-            <p>{formatCurrency(discount)}</p>
+            <p className="text-xs text-ink-500">Discount (cash)</p>
+            <p>
+              {formatCurrency(discount)}
+              {discount > 0 && (
+                <span className="ml-1 text-xs text-ink-500">(~{discountPercent}%)</span>
+              )}
+            </p>
           </div>
           <div>
             <p className="text-xs text-ink-500">Net</p>
             <p className="font-heading text-lg">{formatCurrency(net)}</p>
           </div>
         </div>
+        {discount > 0 && (
+          <p className="mt-2 text-xs text-ink-500">
+            Auto discount from rate difference — no manual % needed.
+          </p>
+        )}
       </Card>
       {error && <p className="text-sm text-danger">{error}</p>}
       <Button className="w-full" loading={saving} onClick={submit}>
@@ -226,5 +252,3 @@ export function SaleForm({ initial = {}, onCreated }) {
     </div>
   );
 }
-
-export { computeSaleAmounts };

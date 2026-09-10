@@ -37,6 +37,7 @@ service cloud.firestore {
     match /transactions/{id} { allow read, write: if isStaff(); }
     match /recoveries/{id} { allow read, write: if isStaff(); }
     match /salesmanDeposits/{id} { allow read, write: if isStaff(); }
+    match /salesmanAdvances/{id} { allow read, write: if isStaff(); }
     match /vendors/{id} { allow read, write: if isStaff(); }
     match /vendorTransactions/{id} { allow read, write: if isStaff(); }
     match /officeBalances/{id} { allow read, write: if isStaff(); }

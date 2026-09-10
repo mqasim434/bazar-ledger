@@ -6,6 +6,7 @@ import {
   DatePicker,
   Modal,
   PageHeader,
+  PrintButton,
   ReceiptPreview,
   Select,
   Spinner,
@@ -18,14 +19,20 @@ import { getClients } from '../../clients/clientsService';
 import { getSalesmen } from '../../salesmen/salesmenService';
 import { SaleForm } from '../components/SaleForm';
 import { getTransactions, markReceiptSent } from '../transactionService';
-import { createReturn } from '../../returns/returnService';
-import { Input, Textarea } from '../../../components/ui';
-import { todayKey } from '../../../utils/formatters';
-import { useSelector } from 'react-redux';
+import { ReturnForm } from '../../returns/components/ReturnForm';
 
 export function TransactionsListPage() {
   const [searchParams] = useSearchParams();
-  const { start, end, setStart, setEnd, inRange } = useDateRangeFilter();
+  const {
+    start,
+    end,
+    setStart,
+    setEnd,
+    inRange,
+    fromStart,
+    setFromStart,
+    setThisMonth,
+  } = useDateRangeFilter();
   const [rows, setRows] = useState([]);
   const [clients, setClients] = useState([]);
   const [salesmen, setSalesmen] = useState([]);
@@ -66,11 +73,38 @@ export function TransactionsListPage() {
     <div>
       <PageHeader
         title="Sales"
-        subtitle="Cash and credit transactions against salesman stock."
-        actions={<Button onClick={() => setSaleOpen(true)}>+ New Sale</Button>}
+        subtitle="Cash and credit transactions. Discount auto-calcs when sold rate is below given rate."
+        actions={
+          <>
+            <PrintButton
+              title="Sales"
+              subtitle={`${fromStart ? 'From start' : formatDate(start)} → ${formatDate(end)}`}
+              columns={[
+                { header: 'Date', value: (r) => formatDate(r.date) },
+                { header: 'Client', value: (r) => r.clientName },
+                { header: 'Salesman', value: (r) => r.salesmanName },
+                { header: 'Item', value: (r) => r.itemName },
+                { header: 'Yards', value: (r) => formatYards(r.yards) },
+                { header: 'Net', value: (r) => formatCurrency(r.netAmount) },
+                { header: 'Pay', value: (r) => r.paymentType },
+              ]}
+              rows={filtered}
+            />
+            <Button onClick={() => setSaleOpen(true)}>+ New Sale</Button>
+          </>
+        }
       />
-      <div className="mb-4 grid gap-3 md:grid-cols-4">
-        <DatePicker mode="range" start={start} end={end} onStartChange={setStart} onEndChange={setEnd} />
+      <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <DatePicker
+          mode="range"
+          start={start}
+          end={end}
+          fromStart={fromStart}
+          onStartChange={setStart}
+          onEndChange={setEnd}
+          onFromStart={setFromStart}
+          onThisMonth={setThisMonth}
+        />
         <Select value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="All shops">
           {clients.map((c) => (
             <option key={c.id} value={c.id}>
@@ -161,67 +195,23 @@ export function TransactionsListPage() {
           />
         )}
       </Modal>
-      <ReturnModal
-        txn={retFor}
-        onClose={() => setRetFor(null)}
-        onDone={() => {
-          setRetFor(null);
-          reload();
-        }}
-      />
-    </div>
-  );
-}
-
-function ReturnModal({ txn, onClose, onDone }) {
-  const toast = useToast();
-  const [yards, setYards] = useState('');
-  const [notes, setNotes] = useState('');
-  const [saving, setSaving] = useState(false);
-  if (!txn) return null;
-  return (
-    <Modal open onClose={onClose} title="Report a return">
-      <div className="space-y-3">
-        <p className="text-sm text-ink-500">
-          {txn.clientName} · {txn.itemName} · sold {formatYards(txn.yards)}
-        </p>
-        <Input
-          label="Yards returned"
-          type="number"
-          min="0"
-          step="0.01"
-          value={yards}
-          onChange={(e) => setYards(e.target.value)}
-        />
-        <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            loading={saving}
-            onClick={async () => {
-              setSaving(true);
-              try {
-                await createReturn({
-                  originalTransactionId: txn.id,
-                  yardsReturned: yards,
-                  notes,
-                  date: todayKey(),
-                });
-                toast('Return submitted as pending', 'success');
-                onDone();
-              } catch (err) {
-                toast(err.message, 'danger');
-              } finally {
-                setSaving(false);
-              }
+      <Modal open={Boolean(retFor)} onClose={() => setRetFor(null)} title="Report a return" size="lg">
+        {retFor && (
+          <ReturnForm
+            initial={{
+              originalTransactionId: retFor.id,
+              clientId: retFor.clientId,
+              yardsReturned: '',
             }}
-          >
-            Submit return
-          </Button>
-        </div>
-      </div>
-    </Modal>
+            onCancel={() => setRetFor(null)}
+            onCreated={() => {
+              toast('Return submitted as pending', 'success');
+              setRetFor(null);
+              reload();
+            }}
+          />
+        )}
+      </Modal>
+    </div>
   );
 }

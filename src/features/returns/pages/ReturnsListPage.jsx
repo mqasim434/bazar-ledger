@@ -5,6 +5,7 @@ import {
   Button,
   Modal,
   PageHeader,
+  PrintButton,
   Select,
   Spinner,
   Table,
@@ -15,6 +16,7 @@ import { useToast } from '../../../hooks/useToast';
 import { formatDate, formatYards } from '../../../utils/formatters';
 import { getClients } from '../../clients/clientsService';
 import { getSalesmen } from '../../salesmen/salesmenService';
+import { ReturnForm } from '../components/ReturnForm';
 import { confirmReturn, getReturns, rejectReturn } from '../returnService';
 
 export function ReturnsListPage() {
@@ -29,6 +31,7 @@ export function ReturnsListPage() {
   const [salesmanId, setSalesmanId] = useState('');
   const [rejecting, setRejecting] = useState(null);
   const [reason, setReason] = useState('');
+  const [addOpen, setAddOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   async function reload() {
@@ -59,7 +62,24 @@ export function ReturnsListPage() {
     <div>
       <PageHeader
         title="Returns"
-        subtitle="Pending returns do not move balances until an admin confirms them."
+        subtitle="Add a return from here or a sale row. Pending returns do not move balances until an admin confirms."
+        actions={
+          <>
+            <PrintButton
+              title="Returns"
+              rows={filtered}
+              columns={[
+                { header: 'Date', value: (r) => formatDate(r.date) },
+                { header: 'Client', value: (r) => r.clientName },
+                { header: 'Salesman', value: (r) => r.salesmanName },
+                { header: 'Item', value: (r) => r.itemName },
+                { header: 'Yards', value: (r) => formatYards(r.yardsReturned) },
+                { header: 'Status', value: (r) => r.status },
+              ]}
+            />
+            <Button onClick={() => setAddOpen(true)}>Add return</Button>
+          </>
+        }
       />
       <div className="mb-4 grid gap-3 md:grid-cols-3">
         <Select value={status} onChange={(e) => setStatus(e.target.value)} placeholder="All statuses">
@@ -128,6 +148,16 @@ export function ReturnsListPage() {
           ]}
         />
       )}
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add return" size="lg">
+        <ReturnForm
+          onCancel={() => setAddOpen(false)}
+          onCreated={() => {
+            toast('Return submitted as pending', 'success');
+            setAddOpen(false);
+            reload();
+          }}
+        />
+      </Modal>
       <Modal open={Boolean(rejecting)} onClose={() => setRejecting(null)} title="Reject return">
         <Textarea label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} />
         <div className="mt-3 flex justify-end gap-2">

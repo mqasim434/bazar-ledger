@@ -46,7 +46,7 @@ export function pickActiveRule(rules, salesmanId, periodEnd) {
   return relevant[0] || null;
 }
 
-export async function generateCommission({ salesmanId, salesmanName, periodStart, periodEnd }, generatedBy) {
+export async function generateCommission({ salesmanId, salesmanName, periodStart, periodEnd, adjustAdvance = true }, generatedBy) {
   const rules = await getCommissionRules();
   const rule = pickActiveRule(rules, salesmanId, periodEnd);
   if (!rule) throw new Error('No commission rule covers this salesman/period.');
@@ -55,11 +55,16 @@ export async function generateCommission({ salesmanId, salesmanName, periodStart
   if (rule.basis === 'recovery') {
     const rows = await getRecoveries({ salesmanId });
     basisAmount = rows
-      .filter((r) => r.date >= periodStart && r.date <= periodEnd)
+      .filter((r) => (!periodStart || r.date >= periodStart) && r.date <= periodEnd)
       .reduce((s, r) => s + Number(r.amount || 0), 0);
   } else {
     const rows = await getTransactions({ salesmanId });
-    const inRange = rows.filter((r) => r.date >= periodStart && r.date <= periodEnd && r.status !== 'returned');
+    const inRange = rows.filter(
+      (r) =>
+        (!periodStart || r.date >= periodStart) &&
+        r.date <= periodEnd &&
+        r.status !== 'returned',
+    );
     if (rule.type === 'flat_per_yard') {
       basisAmount = inRange.reduce((s, r) => s + Number(r.yards || 0), 0);
     } else {
@@ -67,10 +72,21 @@ export async function generateCommission({ salesmanId, salesmanName, periodStart
     }
   }
 
-  const earnedAmount = calcCommission(basisAmount, rule);
+  const earnedRaw = calcCommission(basisAmount, rule);
+  const db = requireDb();
+  const salesmanRef = doc(db, 'salesmen', salesmanId);
+  const salesmanSnap = await getDoc(salesmanRef);
+  if (!salesmanSnap.exists()) throw new Error('Salesman not found.');
+  const salesman = salesmanSnap.data();
+  const advance = roundMoney(Number(salesman.advanceBalance || 0));
+  const advanceApplied = adjustAdvance ? Math.min(advance, earnedRaw) : 0;
+  const earnedAmount = earnedRaw;
+  const paidAmount = advanceApplied;
+  const remainingBalance = roundMoney(earnedAmount - paidAmount);
+
   const body = {
     salesmanId,
-    salesmanName,
+    salesmanName: salesmanName || salesman.name,
     periodStart,
     periodEnd,
     basis: rule.basis,
@@ -78,12 +94,56 @@ export async function generateCommission({ salesmanId, salesmanName, periodStart
     rate: rule.rate,
     basisAmount: roundMoney(basisAmount),
     earnedAmount,
-    paidAmount: 0,
-    remainingBalance: earnedAmount,
-    adjustments: [],
+    paidAmount,
+    advanceApplied,
+    remainingBalance,
+    adjustments: advanceApplied
+      ? [
+          {
+            amount: -advanceApplied,
+            reason: 'Adjusted against salesman advance',
+            date: new Date().toISOString().slice(0, 10),
+            addedBy: generatedBy || null,
+          },
+        ]
+      : [],
     generatedAt: serverTimestamp(),
     generatedBy: generatedBy || null,
   };
+
+  if (advanceApplied > 0) {
+    let createdId = null;
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(salesmanRef);
+      const current = snap.data();
+      tx.update(salesmanRef, {
+        advanceBalance: roundMoney(Number(current.advanceBalance || 0) - advanceApplied),
+        totalCommissionEarned: roundMoney(Number(current.totalCommissionEarned || 0) + earnedAmount),
+        totalCommissionPaid: roundMoney(Number(current.totalCommissionPaid || 0) + advanceApplied),
+        updatedAt: serverTimestamp(),
+      });
+      const ref = doc(collection(db, 'commissions'));
+      createdId = ref.id;
+      tx.set(ref, body);
+      tx.set(doc(collection(db, 'salesmanAdvances')), {
+        salesmanId,
+        salesmanName: salesman.name,
+        amount: -advanceApplied,
+        type: 'adjusted',
+        commissionId: ref.id,
+        date: new Date().toISOString().slice(0, 10),
+        notes: `Adjusted against commission ${periodStart}–${periodEnd}`,
+        addedBy: generatedBy || null,
+        createdAt: serverTimestamp(),
+      });
+    });
+    return { id: createdId, ...body };
+  }
+
+  await updateDoc(salesmanRef, {
+    totalCommissionEarned: roundMoney(Number(salesman.totalCommissionEarned || 0) + earnedAmount),
+    updatedAt: serverTimestamp(),
+  });
   const ref = await addDoc(collection(requireDb(), 'commissions'), body);
   return { id: ref.id, ...body };
 }

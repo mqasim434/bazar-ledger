@@ -35,8 +35,12 @@ export async function getDashboardSummary(dateRange) {
   );
   const vendorOwed = roundMoney(vendors.reduce((s, v) => s + Number(v.totalOwed || 0), 0));
 
-  const inRange = (d) =>
-    !dateRange?.start || !dateRange?.end || (d >= dateRange.start && d <= dateRange.end);
+  const inRange = (d) => {
+    if (!d) return false;
+    if (dateRange?.start && d < dateRange.start) return false;
+    if (dateRange?.end && d > dateRange.end) return false;
+    return true;
+  };
 
   const rangedSales = transactions.filter((t) => inRange(t.date));
   const rangedRecovery = recoveries.filter((r) => inRange(r.date));
@@ -50,6 +54,8 @@ export async function getDashboardSummary(dateRange) {
       sales: s.totalSales || 0,
       recovery: s.totalRecovery || 0,
       cashInHand: s.cashInHand || 0,
+      bankInHand: s.bankInHand || 0,
+      advanceBalance: s.advanceBalance || 0,
       commissionRemaining: remaining,
     };
   });

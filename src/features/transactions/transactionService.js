@@ -14,23 +14,36 @@ import {
   calcDiscountAmount,
   calcGrossAmount,
   calcNetAmount,
+  computeSaleFromRates,
   roundMoney,
   roundYards,
 } from '../../utils/calculations';
 import { docToEntity, docsToEntities } from '../../utils/firestore';
 import { salesmanInventoryId } from '../inventory/stockIssueService';
 
-export function computeSaleAmounts({ yards, ratePerYard, discountPercent }) {
+/** Legacy percent-based (kept for older callers). Prefer computeSaleFromRates. */
+export function computeSaleAmounts({ yards, ratePerYard, discountPercent, givenRatePerYard }) {
+  if (givenRatePerYard != null && givenRatePerYard !== '') {
+    return computeSaleFromRates({
+      yards,
+      givenRatePerYard,
+      soldRatePerYard: ratePerYard,
+    });
+  }
   const grossAmount = calcGrossAmount(yards, ratePerYard);
   const discountAmount = calcDiscountAmount(grossAmount, discountPercent);
   const netAmount = calcNetAmount(grossAmount, discountAmount);
-  return { grossAmount, discountAmount, netAmount };
+  return { grossAmount, discountAmount, netAmount, discountPercent: Number(discountPercent || 0) };
 }
 
 export async function createTransaction(data, createdBy) {
   const yards = roundYards(data.yards);
   if (yards <= 0) throw new Error('Yards must be greater than zero.');
-  const { grossAmount, discountAmount, netAmount } = computeSaleAmounts(data);
+  const amounts = computeSaleAmounts(data);
+  const { grossAmount, discountAmount, netAmount } = amounts;
+  const discountPercent = Number(amounts.discountPercent || data.discountPercent || 0);
+  const givenRate = Number(data.givenRatePerYard ?? data.ratePerYard);
+  const soldRate = Number(data.ratePerYard);
   const db = requireDb();
   let createdId = null;
 
@@ -54,7 +67,9 @@ export async function createTransaction(data, createdBy) {
     const client = clientSnap.data();
     const salesman = salesmanSnap.data();
     const inv = invSnap.data();
-    const item = itemSnap.exists() ? itemSnap.data() : { itemName: inv.itemName, ratePerYard: data.ratePerYard };
+    const item = itemSnap.exists()
+      ? itemSnap.data()
+      : { itemName: inv.itemName, ratePerYard: givenRate };
     const available = Number(inv.yards || 0);
     if (yards > available) {
       throw new Error(`Not enough salesman stock. Available: ${available} yd.`);
@@ -100,10 +115,11 @@ export async function createTransaction(data, createdBy) {
       itemId: data.itemId,
       itemName: item.itemName || inv.itemName,
       yards,
-      ratePerYard: Number(data.ratePerYard),
-      discountPercent: Number(data.discountPercent || 0),
-      grossAmount,
+      givenRatePerYard: givenRate,
+      ratePerYard: soldRate,
+      discountPercent,
       discountAmount,
+      grossAmount,
       netAmount,
       paymentType: data.paymentType,
       date: data.date,

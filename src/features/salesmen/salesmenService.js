@@ -32,6 +32,8 @@ export async function addSalesman(data) {
   const body = {
     ...payloadFromForm(data),
     cashInHand: 0,
+    bankInHand: 0,
+    advanceBalance: 0,
     totalSales: 0,
     totalRecovery: 0,
     totalCommissionEarned: 0,

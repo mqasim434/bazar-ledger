@@ -13,3 +13,4 @@ export { DatePicker } from './DatePicker';
 export { Spinner, FullPageSpinner } from './Spinner';
 export { PageHeader } from './PageHeader';
 export { ReceiptPreview } from './ReceiptPreview';
+export { PrintButton } from './PrintButton';

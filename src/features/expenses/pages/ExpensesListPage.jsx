@@ -24,7 +24,16 @@ const SUGGESTIONS = ['Fuel', 'Rent', 'Utilities', 'Wages', 'Packing', 'Transport
 export function ExpensesListPage() {
   const profile = useSelector((s) => s.auth.profile);
   const toast = useToast();
-  const { start, end, setStart, setEnd, inRange } = useDateRangeFilter();
+  const {
+    start,
+    end,
+    setStart,
+    setEnd,
+    inRange,
+    fromStart,
+    setFromStart,
+    setThisMonth,
+  } = useDateRangeFilter();
   const [tab, setTab] = useState('office');
   const [office, setOffice] = useState([]);
   const [salesmanRows, setSalesmanRows] = useState([]);
@@ -99,7 +108,16 @@ export function ExpensesListPage() {
         ]}
       />
       <div className="my-4 grid gap-3 md:grid-cols-4">
-        <DatePicker mode="range" start={start} end={end} onStartChange={setStart} onEndChange={setEnd} />
+        <DatePicker
+          mode="range"
+          start={start}
+          end={end}
+          fromStart={fromStart}
+          onStartChange={setStart}
+          onEndChange={setEnd}
+          onFromStart={setFromStart}
+          onThisMonth={setThisMonth}
+        />
         <Select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} placeholder="All categories">
           {cats.map((c) => (
             <option key={c} value={c}>

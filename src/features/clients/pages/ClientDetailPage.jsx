@@ -6,6 +6,7 @@ import {
   DatePicker,
   Modal,
   PageHeader,
+  PrintButton,
   Spinner,
   StatCard,
   Table,
@@ -24,6 +25,7 @@ import { getReturns } from '../../returns/returnService';
 import { formatDate, formatYards } from '../../../utils/formatters';
 import { SaleForm } from '../../transactions/components/SaleForm';
 import { RecoveryForm } from '../../recoveries/components/RecoveryForm';
+import { ReturnForm } from '../../returns/components/ReturnForm';
 
 export function ClientDetailPage() {
   const { id } = useParams();
@@ -34,10 +36,20 @@ export function ClientDetailPage() {
   const [edit, setEdit] = useState(false);
   const [saleOpen, setSaleOpen] = useState(false);
   const [recOpen, setRecOpen] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
   const [txns, setTxns] = useState([]);
   const [recs, setRecs] = useState([]);
   const [rets, setRets] = useState([]);
-  const { start, end, setStart, setEnd, inRange } = useDateRangeFilter();
+  const {
+    start,
+    end,
+    setStart,
+    setEnd,
+    inRange,
+    fromStart,
+    setFromStart,
+    setThisMonth,
+  } = useDateRangeFilter();
 
   async function reload() {
     const c = await getClientById(id);
@@ -73,8 +85,28 @@ export function ClientDetailPage() {
         subtitle={`Serial ${client.serialNumber} · ${client.ownerName || 'No owner'} · ${client.city || '—'}`}
         actions={
           <>
+            <PrintButton
+              title={`Client — ${client.shopName}`}
+              subtitle={`Serial ${client.serialNumber} · balance ${formatCurrency(client.balance)}`}
+              stats={[
+                { label: 'Purchase', value: formatCurrency(client.totalPurchase) },
+                { label: 'Credit', value: formatCurrency(client.totalCredit) },
+                { label: 'Recovery', value: formatCurrency(client.totalRecovery) },
+                { label: 'Balance', value: formatCurrency(client.balance) },
+              ]}
+              columns={[
+                { header: 'Date', value: (r) => formatDate(r.date) },
+                { header: 'Item', value: (r) => r.itemName },
+                { header: 'Pay', value: (r) => r.paymentType },
+                { header: 'Net', value: (r) => formatCurrency(r.netAmount) },
+              ]}
+              rows={filteredTx}
+            />
             <Button variant="secondary" onClick={() => setEdit(true)}>
               Edit
+            </Button>
+            <Button variant="secondary" onClick={() => setReturnOpen(true)}>
+              Return
             </Button>
             <Button variant="secondary" onClick={() => setRecOpen(true)}>
               Recovery
@@ -113,7 +145,16 @@ export function ClientDetailPage() {
         />
       </div>
       <div className="mb-4 max-w-md">
-        <DatePicker mode="range" start={start} end={end} onStartChange={setStart} onEndChange={setEnd} />
+        <DatePicker
+          mode="range"
+          start={start}
+          end={end}
+          fromStart={fromStart}
+          onStartChange={setStart}
+          onEndChange={setEnd}
+          onFromStart={setFromStart}
+          onThisMonth={setThisMonth}
+        />
       </div>
       <Tabs
         value={tab}
@@ -192,6 +233,17 @@ export function ClientDetailPage() {
           onCreated={() => {
             toast('Recovery recorded', 'success');
             setRecOpen(false);
+            reload();
+          }}
+        />
+      </Modal>
+      <Modal open={returnOpen} onClose={() => setReturnOpen(false)} title="Report a return" size="lg">
+        <ReturnForm
+          initial={{ clientId: id }}
+          onCancel={() => setReturnOpen(false)}
+          onCreated={() => {
+            toast('Return submitted as pending', 'success');
+            setReturnOpen(false);
             reload();
           }}
         />

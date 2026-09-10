@@ -5,15 +5,18 @@ import {
   Badge,
   Button,
   Card,
+  DatePicker,
   Input,
   Modal,
   PageHeader,
+  PrintButton,
   ReceiptPreview,
   Select,
   Spinner,
   StatCard,
   Table,
 } from '../../../components/ui';
+import { useDateRangeFilter } from '../../../hooks/useDateRangeFilter';
 import { useToast } from '../../../hooks/useToast';
 import { formatCurrency, formatDate, todayKey } from '../../../utils/formatters';
 import {
@@ -33,6 +36,16 @@ export function VendorDetailPage() {
   const [receipt, setReceipt] = useState(null);
   const [form, setForm] = useState({ type: 'purchase', amount: '', date: todayKey() });
   const [saving, setSaving] = useState(false);
+  const {
+    start,
+    end,
+    setStart,
+    setEnd,
+    inRange,
+    fromStart,
+    setFromStart,
+    setThisMonth,
+  } = useDateRangeFilter({ fromStart: true });
 
   async function reload() {
     const [v, t] = await Promise.all([getVendorById(id), getVendorTransactions(id)]);
@@ -46,22 +59,58 @@ export function VendorDetailPage() {
 
   if (!vendor) return <Spinner />;
 
+  const filtered = rows.filter((r) => inRange(r.date));
+
   return (
     <div>
       <PageHeader
         title={vendor.name}
         subtitle={vendor.contact || 'No contact on file'}
-        actions={<Button onClick={() => setOpen(true)}>Record transaction</Button>}
+        actions={
+          <>
+            <PrintButton
+              title={`Vendor — ${vendor.name}`}
+              subtitle={
+                fromStart ? `From start → ${formatDate(end)}` : `${formatDate(start)} → ${formatDate(end)}`
+              }
+              stats={[
+                { label: 'Owed', value: formatCurrency(vendor.totalOwed) },
+                { label: 'Paid', value: formatCurrency(vendor.totalPaid) },
+                { label: 'Advance', value: formatCurrency(vendor.totalAdvance) },
+              ]}
+              columns={[
+                { header: 'Date', value: (r) => formatDate(r.date) },
+                { header: 'Type', value: (r) => r.type },
+                { header: 'Amount', value: (r) => formatCurrency(r.amount) },
+              ]}
+              rows={filtered}
+            />
+            <Button onClick={() => setOpen(true)}>Record transaction</Button>
+          </>
+        }
       />
       <div className="mb-5 grid gap-3 md:grid-cols-3">
         <StatCard label="Total owed" value={formatCurrency(vendor.totalOwed)} accent="danger" />
         <StatCard label="Total paid" value={formatCurrency(vendor.totalPaid)} accent="teal" />
         <StatCard label="Total advance" value={formatCurrency(vendor.totalAdvance)} accent="gold" />
       </div>
+      <div className="mb-3 max-w-lg">
+        <DatePicker
+          mode="range"
+          label="Duration"
+          start={start}
+          end={end}
+          fromStart={fromStart}
+          onStartChange={setStart}
+          onEndChange={setEnd}
+          onFromStart={setFromStart}
+          onThisMonth={setThisMonth}
+        />
+      </div>
       <Card title="History">
         <Table
-          rows={rows}
-          empty="No vendor transactions."
+          rows={filtered}
+          empty="No vendor transactions in this duration."
           columns={[
             { key: 'date', header: 'Date', render: (r) => formatDate(r.date) },
             {
