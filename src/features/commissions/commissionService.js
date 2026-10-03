@@ -157,6 +157,14 @@ export async function recordCommissionPayment(commissionId, amount, paidBy) {
     const commSnap = await tx.get(commRef);
     if (!commSnap.exists()) throw new Error('Commission not found.');
     const comm = commSnap.data();
+    const remaining = roundMoney(
+      Number(comm.remainingBalance ?? Number(comm.earnedAmount || 0) - Number(comm.paidAmount || 0)),
+    );
+    if (pay > remaining) {
+      throw new Error(
+        `Payment cannot exceed remaining commission (${remaining}).`,
+      );
+    }
     const salesmanRef = doc(db, 'salesmen', comm.salesmanId);
     const salesmanSnap = await tx.get(salesmanRef);
     if (!salesmanSnap.exists()) throw new Error('Salesman not found.');

@@ -263,15 +263,35 @@ export function CommissionsPage() {
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-2">
-                <Input label="Record payment" type="number" value={pay} onChange={(e) => setPay(e.target.value)} />
+                <Input
+                  label="Record payment"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={pay}
+                  hint={`Max ${formatCurrency(detail.remainingBalance)}`}
+                  onChange={(e) => setPay(e.target.value)}
+                />
                 <Button
                   size="sm"
                   onClick={async () => {
-                    await recordCommissionPayment(detail.id, pay, profile?.email);
-                    toast('Payment recorded', 'success');
-                    setPay('');
-                    setDetail(null);
-                    reload();
+                    try {
+                      const amount = Number(pay);
+                      if (amount > Number(detail.remainingBalance || 0)) {
+                        toast(
+                          `Payment cannot exceed remaining commission (${formatCurrency(detail.remainingBalance)}).`,
+                          'danger',
+                        );
+                        return;
+                      }
+                      await recordCommissionPayment(detail.id, pay, profile?.email);
+                      toast('Payment recorded', 'success');
+                      setPay('');
+                      setDetail(null);
+                      reload();
+                    } catch (err) {
+                      toast(err.message || 'Payment failed', 'danger');
+                    }
                   }}
                 >
                   Pay
