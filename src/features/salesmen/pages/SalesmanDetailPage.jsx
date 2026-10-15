@@ -60,6 +60,7 @@ export function SalesmanDetailPage() {
   const [comms, setComms] = useState([]);
   const [advances, setAdvances] = useState([]);
   const [rets, setRets] = useState([]);
+  const [ledgerKind, setLedgerKind] = useState('all'); // all | sale | recovery
   const {
     start,
     end,
@@ -70,6 +71,53 @@ export function SalesmanDetailPage() {
     setFromStart,
     setThisMonth,
   } = useDateRangeFilter();
+
+  const balanceByClientId = useMemo(() => {
+    const map = {};
+    for (const c of clients) map[c.id] = Number(c.balance || 0);
+    return map;
+  }, [clients]);
+
+  /** Sales + recoveries in one list so office can match maal diya / paisa aaya / remaining. */
+  const ledgerRows = useMemo(() => {
+    const sales = txns
+      .filter((r) => inRange(r.date))
+      .map((r) => ({
+        id: `sale-${r.id}`,
+        kind: 'sale',
+        date: r.date,
+        clientId: r.clientId,
+        clientName: r.clientName,
+        detail: r.itemName,
+        amount: Number(r.netAmount || 0),
+        payLabel: r.paymentType,
+        raw: r,
+      }));
+    const recoveries = recs
+      .filter((r) => inRange(r.date))
+      .map((r) => ({
+        id: `rec-${r.id}`,
+        kind: 'recovery',
+        date: r.date,
+        clientId: r.clientId,
+        clientName: r.clientName,
+        detail:
+          r.paymentMode === 'bank' && r.bankStatus === 'pending'
+            ? 'Bank · pending office'
+            : `Recovery · ${r.paymentMode || 'cash'}`,
+        amount: Number(r.amount || 0),
+        payLabel: r.paymentMode || 'cash',
+        raw: r,
+      }));
+    let rows =
+      ledgerKind === 'sale' ? sales : ledgerKind === 'recovery' ? recoveries : [...sales, ...recoveries];
+    rows = [...rows].sort((a, b) => {
+      const byDate = String(b.date || '').localeCompare(String(a.date || ''));
+      if (byDate) return byDate;
+      return String(b.id).localeCompare(String(a.id));
+    });
+    return rows;
+  }, [txns, recs, inRange, ledgerKind]);
 
   async function reload() {
     const s = await getSalesmanById(id);
@@ -260,17 +308,98 @@ export function SalesmanDetailPage() {
           </div>
         )}
         {tab === 'transactions' && (
-          <Table
-            rows={txns.filter((r) => inRange(r.date))}
-            empty="No sales in range."
-            columns={[
-              { key: 'date', header: 'Date', render: (r) => formatDate(r.date) },
-              { key: 'clientName', header: 'Client' },
-              { key: 'itemName', header: 'Item' },
-              { key: 'netAmount', header: 'Net', render: (r) => formatCurrency(r.netAmount) },
-              { key: 'paymentType', header: 'Pay' },
-            ]}
-          />
+          <>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap gap-1 rounded-md border border-ink-100 bg-white p-1">
+                {[
+                  { id: 'all', label: 'All' },
+                  { id: 'sale', label: 'Sales only' },
+                  { id: 'recovery', label: 'Recoveries only' },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setLedgerKind(opt.id)}
+                    className={`rounded px-2.5 py-1 text-sm ${
+                      ledgerKind === opt.id
+                        ? 'bg-brand-500 text-white'
+                        : 'text-ink-700 hover:bg-brand-50'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <Button size="sm" variant="secondary" onClick={() => setRecOpen(true)}>
+                New recovery
+              </Button>
+              <p className="w-full text-xs text-ink-500 sm:w-auto sm:ml-auto">
+                Remaining = client ka current udhar balance (maal − recovery)
+              </p>
+            </div>
+            <Table
+              rows={ledgerRows}
+              empty="No sales or recoveries in range."
+              columns={[
+                { key: 'date', header: 'Date', render: (r) => formatDate(r.date) },
+                {
+                  key: 'kind',
+                  header: 'Type',
+                  render: (r) => (
+                    <Badge tone={r.kind === 'sale' ? 'credit' : 'cash'}>
+                      {r.kind === 'sale' ? 'Sale' : 'Recovery'}
+                    </Badge>
+                  ),
+                },
+                {
+                  key: 'clientName',
+                  header: 'Client',
+                  render: (r) =>
+                    r.clientId ? (
+                      <Link className="text-brand-700 hover:underline" to={`/clients/${r.clientId}`}>
+                        {r.clientName}
+                      </Link>
+                    ) : (
+                      r.clientName
+                    ),
+                },
+                { key: 'detail', header: 'Detail' },
+                {
+                  key: 'amount',
+                  header: 'Amount',
+                  render: (r) => (
+                    <span className={r.kind === 'recovery' ? 'font-medium text-success' : undefined}>
+                      {r.kind === 'recovery' ? '− ' : ''}
+                      {formatCurrency(r.amount)}
+                    </span>
+                  ),
+                },
+                {
+                  key: 'payLabel',
+                  header: 'Pay',
+                  render: (r) =>
+                    r.kind === 'sale' ? (
+                      <Badge tone={r.payLabel === 'cash' ? 'cash' : 'credit'}>{r.payLabel}</Badge>
+                    ) : (
+                      <Badge tone="cash">{r.payLabel}</Badge>
+                    ),
+                },
+                {
+                  key: 'remaining',
+                  header: 'Remaining',
+                  render: (r) => {
+                    const bal = balanceByClientId[r.clientId];
+                    if (bal == null) return '—';
+                    return (
+                      <span className={bal > 0 ? 'font-medium text-danger' : 'text-success'}>
+                        {formatCurrency(bal)}
+                      </span>
+                    );
+                  },
+                },
+              ]}
+            />
+          </>
         )}
         {tab === 'recoveries' && (
           <>
@@ -282,13 +411,37 @@ export function SalesmanDetailPage() {
               empty="No recoveries in range."
               columns={[
                 { key: 'date', header: 'Date', render: (r) => formatDate(r.date) },
-                { key: 'clientName', header: 'Client' },
+                {
+                  key: 'clientName',
+                  header: 'Client',
+                  render: (r) =>
+                    r.clientId ? (
+                      <Link className="text-brand-700 hover:underline" to={`/clients/${r.clientId}`}>
+                        {r.clientName}
+                      </Link>
+                    ) : (
+                      r.clientName
+                    ),
+                },
                 { key: 'amount', header: 'Amount', render: (r) => formatCurrency(r.amount) },
                 { key: 'paymentMode', header: 'Mode' },
                 {
                   key: 'bankStatus',
                   header: 'Bank status',
                   render: (r) => r.bankStatus || '—',
+                },
+                {
+                  key: 'remaining',
+                  header: 'Remaining',
+                  render: (r) => {
+                    const bal = balanceByClientId[r.clientId];
+                    if (bal == null) return '—';
+                    return (
+                      <span className={bal > 0 ? 'font-medium text-danger' : 'text-success'}>
+                        {formatCurrency(bal)}
+                      </span>
+                    );
+                  },
                 },
               ]}
             />

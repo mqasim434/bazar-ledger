@@ -40,6 +40,7 @@ export function ClientDetailPage() {
   const [txns, setTxns] = useState([]);
   const [recs, setRecs] = useState([]);
   const [rets, setRets] = useState([]);
+  const [ledgerKind, setLedgerKind] = useState('all');
   const {
     start,
     end,
@@ -70,6 +71,35 @@ export function ClientDetailPage() {
 
   const filteredTx = useMemo(() => txns.filter((r) => inRange(r.date)), [txns, inRange]);
   const filteredRec = useMemo(() => recs.filter((r) => inRange(r.date)), [recs, inRange]);
+
+  const ledgerRows = useMemo(() => {
+    const sales = filteredTx.map((r) => ({
+      id: `sale-${r.id}`,
+      kind: 'sale',
+      date: r.date,
+      detail: r.itemName,
+      amount: Number(r.netAmount || 0),
+      payLabel: r.paymentType,
+    }));
+    const recoveries = filteredRec.map((r) => ({
+      id: `rec-${r.id}`,
+      kind: 'recovery',
+      date: r.date,
+      detail:
+        r.paymentMode === 'bank' && r.bankStatus === 'pending'
+          ? 'Bank · pending office'
+          : `Recovery · ${r.paymentMode || 'cash'}`,
+      amount: Number(r.amount || 0),
+      payLabel: r.paymentMode || 'cash',
+    }));
+    let rows =
+      ledgerKind === 'sale' ? sales : ledgerKind === 'recovery' ? recoveries : [...sales, ...recoveries];
+    return [...rows].sort((a, b) => {
+      const byDate = String(b.date || '').localeCompare(String(a.date || ''));
+      if (byDate) return byDate;
+      return String(b.id).localeCompare(String(a.id));
+    });
+  }, [filteredTx, filteredRec, ledgerKind]);
 
   if (!client) return <Spinner />;
 
@@ -167,18 +197,69 @@ export function ClientDetailPage() {
       />
       <div className="mt-4">
         {tab === 'transactions' && (
-          <Table
-            rows={filteredTx}
-            empty="No sales in this range."
-            columns={[
-              { key: 'date', header: 'Date', render: (r) => formatDate(r.date) },
-              { key: 'itemName', header: 'Item' },
-              { key: 'yards', header: 'Yards', render: (r) => formatYards(r.yards) },
-              { key: 'netAmount', header: 'Net', render: (r) => formatCurrency(r.netAmount) },
-              { key: 'paymentType', header: 'Pay' },
-              { key: 'status', header: 'Status' },
-            ]}
-          />
+          <>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap gap-1 rounded-md border border-ink-100 bg-white p-1">
+                {[
+                  { id: 'all', label: 'All' },
+                  { id: 'sale', label: 'Sales only' },
+                  { id: 'recovery', label: 'Recoveries only' },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setLedgerKind(opt.id)}
+                    className={`rounded px-2.5 py-1 text-sm ${
+                      ledgerKind === opt.id
+                        ? 'bg-brand-500 text-white'
+                        : 'text-ink-700 hover:bg-brand-50'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-ink-500">
+                Remaining balance (top): {formatCurrency(client.balance)}
+              </p>
+            </div>
+            <Table
+              rows={ledgerRows}
+              empty="No sales or recoveries in this range."
+              columns={[
+                { key: 'date', header: 'Date', render: (r) => formatDate(r.date) },
+                {
+                  key: 'kind',
+                  header: 'Type',
+                  render: (r) => (
+                    <Badge tone={r.kind === 'sale' ? 'credit' : 'cash'}>
+                      {r.kind === 'sale' ? 'Sale' : 'Recovery'}
+                    </Badge>
+                  ),
+                },
+                { key: 'detail', header: 'Detail' },
+                {
+                  key: 'amount',
+                  header: 'Amount',
+                  render: (r) => (
+                    <span className={r.kind === 'recovery' ? 'font-medium text-success' : undefined}>
+                      {r.kind === 'recovery' ? '− ' : ''}
+                      {formatCurrency(r.amount)}
+                    </span>
+                  ),
+                },
+                {
+                  key: 'payLabel',
+                  header: 'Pay',
+                  render: (r) => (
+                    <Badge tone={r.payLabel === 'cash' || r.kind === 'recovery' ? 'cash' : 'credit'}>
+                      {r.payLabel}
+                    </Badge>
+                  ),
+                },
+              ]}
+            />
+          </>
         )}
         {tab === 'recoveries' && (
           <Table
