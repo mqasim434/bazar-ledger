@@ -50,7 +50,7 @@ export function ClientDetailPage() {
     fromStart,
     setFromStart,
     setThisMonth,
-  } = useDateRangeFilter();
+  } = useDateRangeFilter({ fromStart: true });
 
   async function reload() {
     const c = await getClientById(id);
@@ -190,7 +190,7 @@ export function ClientDetailPage() {
         value={tab}
         onChange={setTab}
         tabs={[
-          { id: 'transactions', label: 'Transactions' },
+          { id: 'transactions', label: 'Ledger (time-wise)' },
           { id: 'recoveries', label: 'Recoveries' },
           { id: 'returns', label: 'Returns' },
         ]}

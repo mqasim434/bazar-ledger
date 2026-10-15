@@ -7,6 +7,7 @@ import { ClientsListPage } from '../features/clients/pages/ClientsListPage';
 import { ClientDetailPage } from '../features/clients/pages/ClientDetailPage';
 import { SalesmenListPage } from '../features/salesmen/pages/SalesmenListPage';
 import { SalesmanDetailPage } from '../features/salesmen/pages/SalesmanDetailPage';
+import { DepositsListPage } from '../features/salesmen/pages/DepositsListPage';
 import { InventoryListPage } from '../features/inventory/pages/InventoryListPage';
 import { StockIssuePage } from '../features/inventory/pages/StockIssuePage';
 import { TransactionsListPage } from '../features/transactions/pages/TransactionsListPage';
@@ -35,6 +36,7 @@ export function AppRoutes() {
           <Route path="/stock-issues" element={<StockIssuePage />} />
           <Route path="/transactions" element={<TransactionsListPage />} />
           <Route path="/recoveries" element={<RecoveriesListPage />} />
+          <Route path="/deposits" element={<DepositsListPage />} />
           <Route path="/returns" element={<ReturnsListPage />} />
           <Route path="/vendors" element={<VendorsListPage />} />
           <Route path="/vendors/:id" element={<VendorDetailPage />} />

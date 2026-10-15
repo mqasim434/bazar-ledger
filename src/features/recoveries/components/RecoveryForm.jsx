@@ -68,9 +68,11 @@ export function RecoveryForm({ initial = {}, onCreated }) {
         required
         value={form.clientId}
         onChange={(id) => setForm({ ...form, clientId: id, salesmanId: '' })}
+        placeholder="Search by shop name or serial…"
         options={clients.map((c) => ({
           value: c.id,
-          label: `${c.shopName} · bal ${formatCurrency(c.balance)}`,
+          label: `${c.shopName} · #${c.serialNumber || '—'} · bal ${formatCurrency(c.balance)}`,
+          searchText: `${c.shopName} ${c.serialNumber || ''} ${c.ownerName || ''} ${c.city || ''} ${c.area || ''}`,
         }))}
       />
       <SearchableSelect

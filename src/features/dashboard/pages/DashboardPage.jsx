@@ -36,23 +36,22 @@ export function DashboardPage() {
     <div>
       <PageHeader
         title="Overview"
-        subtitle="Office cash, credit outstanding, and salesman rollup."
+        subtitle="Total credit up top; period figures below with the date filter."
       />
-      <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <StatCard label="Cash in hand" value={formatCurrency(data.office.cashInHand)} accent="gold" />
-        <StatCard label="Cash in bank" value={formatCurrency(data.office.cashInBank)} accent="teal" />
+
+      <div className="mb-5">
         <StatCard
-          label="Credit outstanding"
+          label="Total credit outstanding"
           value={formatCurrency(data.creditOutstanding)}
           accent={data.creditOutstanding > 0 ? 'danger' : 'success'}
+          hint="All shops — current udhar balance"
         />
-        <StatCard label="Inventory value" value={formatCurrency(data.inventoryValue)} accent="brand" />
-        <StatCard label="Vendor owed" value={formatCurrency(data.vendorOwed)} accent="warn" />
       </div>
+
       <div className="mb-4 max-w-md">
         <DatePicker
           mode="range"
-          label="Sales / recovery period"
+          label="Timeline"
           start={start}
           end={end}
           fromStart={fromStart}
@@ -62,10 +61,46 @@ export function DashboardPage() {
           onThisMonth={setThisMonth}
         />
       </div>
-      <div className="mb-6 grid gap-3 md:grid-cols-2">
-        <StatCard label="Total sales (range)" value={formatCurrency(data.totalSales)} accent="teal" />
-        <StatCard label="Total recovery (range)" value={formatCurrency(data.totalRecovery)} accent="gold" />
+
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Cash in hand"
+          value={formatCurrency(data.cashInHand)}
+          accent="gold"
+          hint={`Office ${formatCurrency(data.officeCashInHand)} + salesmen`}
+        />
+        <StatCard
+          label="Cash in bank"
+          value={formatCurrency(data.cashInBank)}
+          accent="teal"
+          hint={`Office ${formatCurrency(data.officeCashInBank)} + salesmen`}
+        />
+        <StatCard label="Total sale" value={formatCurrency(data.totalSales)} accent="brand" />
+        <StatCard label="Credit sale" value={formatCurrency(data.creditSales)} accent="warn" />
+        <StatCard label="Cash sale" value={formatCurrency(data.cashSales)} accent="gold" />
+        <StatCard
+          label="Commission due"
+          value={formatCurrency(data.commissionDue)}
+          accent="success"
+          hint={
+            data.commissionEarnedInRange
+              ? `Earned in range ${formatCurrency(data.commissionEarnedInRange)}`
+              : undefined
+          }
+        />
+        <StatCard label="Recovery" value={formatCurrency(data.totalRecovery)} accent="teal" />
+        <StatCard
+          label="Advance"
+          value={formatCurrency(data.advanceOutstanding)}
+          accent="danger"
+          hint={
+            data.advanceTaken
+              ? `Taken in range ${formatCurrency(data.advanceTaken)}`
+              : 'Current salesman advances'
+          }
+        />
       </div>
+
       <h2 className="mb-2 font-heading text-lg">Salesmen</h2>
       <Table
         rows={data.salesmanRows}

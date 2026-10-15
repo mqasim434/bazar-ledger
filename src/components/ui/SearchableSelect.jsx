@@ -23,7 +23,11 @@ export function SearchableSelect({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return options;
-    return options.filter((o) => getOptionLabel(o).toLowerCase().includes(q));
+    return options.filter((o) => {
+      const label = getOptionLabel(o).toLowerCase();
+      const extra = String(o.searchText || '').toLowerCase();
+      return label.includes(q) || extra.includes(q);
+    });
   }, [options, query, getOptionLabel]);
 
   useEffect(() => {

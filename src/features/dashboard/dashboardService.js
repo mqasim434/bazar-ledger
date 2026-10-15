@@ -1,6 +1,7 @@
-import { doc, getDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import { requireDb } from '../../config/firebase';
 import { roundMoney } from '../../utils/calculations';
+import { docsToEntities } from '../../utils/firestore';
 import { getClients } from '../clients/clientsService';
 import { getInventory } from '../inventory/inventoryService';
 import { getRecoveries } from '../recoveries/recoveryService';
@@ -16,7 +17,7 @@ export async function getDashboardSummary(dateRange) {
     ? officeSnap.data()
     : { cashInHand: 0, cashInBank: 0 };
 
-  const [clients, salesmen, inventory, vendors, transactions, recoveries, commissions] =
+  const [clients, salesmen, inventory, vendors, transactions, recoveries, commissions, advances] =
     await Promise.all([
       getClients(),
       getSalesmen(),
@@ -25,6 +26,7 @@ export async function getDashboardSummary(dateRange) {
       getTransactions(),
       getRecoveries(),
       getCommissions(),
+      docsToEntities(await getDocs(collection(db, 'salesmanAdvances'))),
     ]);
 
   const creditOutstanding = roundMoney(
@@ -44,6 +46,46 @@ export async function getDashboardSummary(dateRange) {
 
   const rangedSales = transactions.filter((t) => inRange(t.date));
   const rangedRecovery = recoveries.filter((r) => inRange(r.date));
+  const rangedAdvances = advances.filter((a) => inRange(a.date) && a.type !== 'cleared');
+
+  const cashSales = roundMoney(
+    rangedSales
+      .filter((t) => t.paymentType === 'cash')
+      .reduce((s, t) => s + Number(t.netAmount || 0), 0),
+  );
+  const creditSales = roundMoney(
+    rangedSales
+      .filter((t) => t.paymentType === 'credit')
+      .reduce((s, t) => s + Number(t.netAmount || 0), 0),
+  );
+  const totalSales = roundMoney(cashSales + creditSales);
+  const totalRecovery = roundMoney(
+    rangedRecovery.reduce((s, r) => s + Number(r.amount || 0), 0),
+  );
+  const commissionDue = roundMoney(
+    commissions.reduce((s, c) => s + Number(c.remainingBalance || 0), 0),
+  );
+  const commissionEarnedInRange = roundMoney(
+    commissions
+      .filter((c) => inRange(c.periodEnd) || inRange(c.periodStart))
+      .reduce((s, c) => s + Number(c.earnedAmount || 0), 0),
+  );
+  const advanceTaken = roundMoney(
+    rangedAdvances.reduce((s, a) => s + Math.max(0, Number(a.amount || 0)), 0),
+  );
+  const advanceOutstanding = roundMoney(
+    salesmen.reduce((s, m) => s + Number(m.advanceBalance || 0), 0),
+  );
+
+  /** Office + all salesmen held cash/bank (current snapshot). */
+  const cashInHand = roundMoney(
+    Number(office.cashInHand || 0) +
+      salesmen.reduce((s, m) => s + Number(m.cashInHand || 0), 0),
+  );
+  const cashInBank = roundMoney(
+    Number(office.cashInBank || 0) +
+      salesmen.reduce((s, m) => s + Number(m.bankInHand || 0), 0),
+  );
 
   const salesmanRows = salesmen.map((s) => {
     const comm = commissions.filter((c) => c.salesmanId === s.id);
@@ -86,8 +128,18 @@ export async function getDashboardSummary(dateRange) {
     creditOutstanding,
     inventoryValue,
     vendorOwed,
-    totalSales: roundMoney(rangedSales.reduce((s, t) => s + Number(t.netAmount || 0), 0)),
-    totalRecovery: roundMoney(rangedRecovery.reduce((s, r) => s + Number(r.amount || 0), 0)),
+    cashInHand,
+    cashInBank,
+    officeCashInHand: Number(office.cashInHand || 0),
+    officeCashInBank: Number(office.cashInBank || 0),
+    totalSales,
+    cashSales,
+    creditSales,
+    totalRecovery,
+    commissionDue,
+    commissionEarnedInRange,
+    advanceTaken,
+    advanceOutstanding,
     salesmanRows,
     activity,
   };

@@ -33,6 +33,7 @@ export function SaleForm({ initial = {}, onCreated }) {
     givenRatePerYard: '',
     ratePerYard: '',
     paymentType: 'cash',
+    cashMode: 'cash',
     date: todayKey(),
   });
 
@@ -139,9 +140,11 @@ export function SaleForm({ initial = {}, onCreated }) {
         required
         value={form.clientId}
         onChange={(id) => setForm({ ...form, clientId: id, salesmanId: '' })}
+        placeholder="Search by shop name or serial…"
         options={clients.map((c) => ({
           value: c.id,
-          label: `${c.shopName} · ${c.serialNumber}`,
+          label: `${c.shopName} · #${c.serialNumber || '—'}`,
+          searchText: `${c.shopName} ${c.serialNumber || ''} ${c.ownerName || ''} ${c.city || ''} ${c.area || ''}`,
         }))}
       />
       <SearchableSelect
@@ -208,9 +211,24 @@ export function SaleForm({ initial = {}, onCreated }) {
         value={form.paymentType}
         onChange={(e) => setForm({ ...form, paymentType: e.target.value })}
       >
-        <option value="cash">Cash</option>
-        <option value="credit">Credit</option>
+        <option value="cash">Cash sale</option>
+        <option value="credit">Credit (udhar)</option>
       </Select>
+      {form.paymentType === 'cash' && (
+        <Select
+          label="Received as"
+          value={form.cashMode}
+          onChange={(e) => setForm({ ...form, cashMode: e.target.value })}
+          hint={
+            form.cashMode === 'bank'
+              ? 'Goes to salesman bank in hand (POS / transfer).'
+              : 'Goes to salesman cash in hand.'
+          }
+        >
+          <option value="cash">Cash</option>
+          <option value="bank">Bank / POS</option>
+        </Select>
+      )}
       <Card accent="gold">
         <div className="grid grid-cols-3 gap-2 text-sm tnum">
           <div>

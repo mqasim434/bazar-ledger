@@ -12,6 +12,7 @@ const NAV = [
   { to: '/stock-issues', label: 'Stock Issue', icon: IconArrow },
   { to: '/transactions', label: 'Sales', icon: IconTicket },
   { to: '/recoveries', label: 'Recoveries', icon: IconCoin },
+  { to: '/deposits', label: 'Deposits', icon: IconDeposit },
   { to: '/returns', label: 'Returns', icon: IconReturn },
   { to: '/vendors', label: 'Vendors', icon: IconTruck },
   { to: '/expenses', label: 'Expenses', icon: IconBook, adminOnly: true },
@@ -139,6 +140,15 @@ function IconCoin() {
     <Ico>
       <circle cx="12" cy="12" r="8" />
       <path d="M12 8v8M9.5 10.5c.6-.8 1.5-1.2 2.5-1.2 1.8 0 3 1 3 2.4s-1.2 2.3-3 2.3-3 1-3 2.3c0 1.4 1.2 2.4 3 2.4 1 0 1.9-.4 2.5-1.2" />
+    </Ico>
+  );
+}
+function IconDeposit() {
+  return (
+    <Ico>
+      <path d="M12 3v12" />
+      <path d="M8 11l4 4 4-4" />
+      <path d="M5 19h14" />
     </Ico>
   );
 }

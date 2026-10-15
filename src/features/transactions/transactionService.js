@@ -85,15 +85,21 @@ export async function createTransaction(data, createdBy) {
       valueAtCost: Math.max(0, nextInvValue),
       updatedAt: serverTimestamp(),
     });
-    tx.update(salesmanRef, {
+    const isCash = data.paymentType === 'cash';
+    const cashMode = data.cashMode === 'bank' ? 'bank' : 'cash';
+    const salesmanUpdate = {
       inventoryValue: roundMoney(Number(salesman.inventoryValue || 0) - valueOut),
       totalSales: roundMoney(Number(salesman.totalSales || 0) + netAmount),
-      cashInHand:
-        data.paymentType === 'cash'
-          ? roundMoney(Number(salesman.cashInHand || 0) + netAmount)
-          : Number(salesman.cashInHand || 0),
       updatedAt: serverTimestamp(),
-    });
+    };
+    if (isCash) {
+      if (cashMode === 'bank') {
+        salesmanUpdate.bankInHand = roundMoney(Number(salesman.bankInHand || 0) + netAmount);
+      } else {
+        salesmanUpdate.cashInHand = roundMoney(Number(salesman.cashInHand || 0) + netAmount);
+      }
+    }
+    tx.update(salesmanRef, salesmanUpdate);
 
     const clientUpdate = {
       totalPurchase: roundMoney(Number(client.totalPurchase || 0) + netAmount),
@@ -122,6 +128,7 @@ export async function createTransaction(data, createdBy) {
       grossAmount,
       netAmount,
       paymentType: data.paymentType,
+      cashMode: isCash ? cashMode : null,
       date: data.date,
       createdBy: createdBy || null,
       receiptSent: false,
