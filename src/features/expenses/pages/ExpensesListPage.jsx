@@ -50,7 +50,8 @@ export function ExpensesListPage() {
   const [filterSource, setFilterSource] = useState('');
   const [filterSalesman, setFilterSalesman] = useState('');
   const [saving, setSaving] = useState(false);
-  const [warnNeg, setWarnNeg] = useState(false);
+
+  const selectedSalesman = salesmen.find((s) => s.id === salesmanId);
 
   async function reload() {
     setLoading(true);
@@ -96,7 +97,7 @@ export function ExpensesListPage() {
     <div>
       <PageHeader
         title="Expenses"
-        subtitle="Office cash/bank outflows, plus salesman-attributed costs (reporting only)."
+        subtitle="Office expenses from office money; salesman expenses from that salesman’s cash/bank."
         actions={<Button onClick={() => setOpen(true)}>Add expense</Button>}
       />
       <Tabs
@@ -163,6 +164,11 @@ export function ExpensesListPage() {
             { key: 'salesmanName', header: 'Salesman' },
             { key: 'category', header: 'Category' },
             { key: 'amount', header: 'Amount', render: (r) => formatCurrency(r.amount) },
+            {
+              key: 'paidFrom',
+              header: 'From',
+              render: (r) => r.paidFrom || '—',
+            },
             { key: 'notes', header: 'Notes', render: (r) => r.notes || '—' },
           ]}
         />
@@ -181,13 +187,24 @@ export function ExpensesListPage() {
             ))}
           </datalist>
           {tab === 'salesman' && (
-            <SearchableSelect
-              label="Salesman"
-              required
-              value={salesmanId}
-              onChange={setSalesmanId}
-              options={salesmen.map((s) => ({ value: s.id, label: s.name }))}
-            />
+            <>
+              <SearchableSelect
+                label="Salesman"
+                required
+                value={salesmanId}
+                onChange={setSalesmanId}
+                options={salesmen.map((s) => ({
+                  value: s.id,
+                  label: `${s.name} · cash ${formatCurrency(s.cashInHand)} · bank ${formatCurrency(s.bankInHand)}`,
+                }))}
+              />
+              {selectedSalesman && (
+                <p className="text-xs text-ink-500">
+                  Available — cash {formatCurrency(selectedSalesman.cashInHand)} · bank{' '}
+                  {formatCurrency(selectedSalesman.bankInHand)}
+                </p>
+              )}
+            </>
           )}
           <Input
             label="Amount"
@@ -197,19 +214,21 @@ export function ExpensesListPage() {
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
-          {tab === 'office' && (
-            <Select label="Source" value={source} onChange={(e) => setSource(e.target.value)}>
-              <option value="cash">Cash</option>
-              <option value="bank">Bank</option>
-            </Select>
-          )}
+          <Select
+            label={tab === 'office' ? 'From office' : 'From salesman'}
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            hint={
+              tab === 'office'
+                ? 'Deducts from office cash or bank.'
+                : 'Deducts from this salesman’s cash or bank in hand.'
+            }
+          >
+            <option value="cash">Cash</option>
+            <option value="bank">Bank</option>
+          </Select>
           <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-          {warnNeg && (
-            <p className="text-sm text-warn">
-              This may drive the office balance negative. Submit again to continue.
-            </p>
-          )}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setOpen(false)}>
               Cancel
@@ -218,6 +237,9 @@ export function ExpensesListPage() {
               loading={saving}
               onClick={async () => {
                 if (!category.trim() || !amount) return toast('Category and amount required', 'danger');
+                if (tab === 'salesman' && !salesmanId) {
+                  return toast('Select a salesman', 'danger');
+                }
                 setSaving(true);
                 try {
                   if (tab === 'office') {
@@ -227,7 +249,7 @@ export function ExpensesListPage() {
                     );
                   } else {
                     await addSalesmanExpense(
-                      { salesmanId, category, amount, date, notes },
+                      { salesmanId, category, amount, date, notes, paidFrom: source },
                       profile?.email,
                     );
                   }
@@ -236,12 +258,8 @@ export function ExpensesListPage() {
                   setCategory('');
                   setAmount('');
                   setNotes('');
-                  setWarnNeg(false);
                   reload();
                 } catch (err) {
-                  if (!warnNeg && /negative/i.test(err.message)) {
-                    setWarnNeg(true);
-                  }
                   toast(err.message, 'danger');
                 } finally {
                   setSaving(false);

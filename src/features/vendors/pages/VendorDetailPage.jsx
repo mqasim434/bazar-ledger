@@ -15,6 +15,7 @@ import {
   Spinner,
   StatCard,
   Table,
+  Textarea,
 } from '../../../components/ui';
 import { useDateRangeFilter } from '../../../hooks/useDateRangeFilter';
 import { useToast } from '../../../hooks/useToast';
@@ -34,7 +35,7 @@ export function VendorDetailPage() {
   const [rows, setRows] = useState([]);
   const [open, setOpen] = useState(false);
   const [receipt, setReceipt] = useState(null);
-  const [form, setForm] = useState({ type: 'purchase', amount: '', date: todayKey() });
+  const [form, setForm] = useState({ type: 'purchase', amount: '', date: todayKey(), notes: '' });
   const [saving, setSaving] = useState(false);
   const {
     start,
@@ -119,6 +120,7 @@ export function VendorDetailPage() {
               render: (r) => <Badge tone={r.type === 'purchase' ? 'credit' : 'teal'}>{r.type}</Badge>,
             },
             { key: 'amount', header: 'Amount', render: (r) => formatCurrency(r.amount) },
+            { key: 'notes', header: 'Notes', render: (r) => r.notes || '—' },
             {
               key: 'actions',
               header: '',
@@ -156,6 +158,12 @@ export function VendorDetailPage() {
             value={form.date}
             onChange={(e) => setForm({ ...form, date: e.target.value })}
           />
+          <Textarea
+            label="Notes"
+            value={form.notes}
+            hint="Optional — item detail, bill no, etc."
+            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setOpen(false)}>
               Cancel
@@ -171,6 +179,7 @@ export function VendorDetailPage() {
                   );
                   toast('Recorded', 'success');
                   setOpen(false);
+                  setForm({ type: 'purchase', amount: '', date: todayKey(), notes: '' });
                   setReceipt(txn);
                   reload();
                 } catch (err) {

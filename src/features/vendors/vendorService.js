@@ -88,6 +88,7 @@ export async function addVendorTransaction(data, createdBy) {
       type: data.type,
       amount,
       date: data.date,
+      notes: (data.notes || '').trim(),
       createdBy: createdBy || null,
       receiptSent: false,
       createdAt: serverTimestamp(),
